@@ -90,18 +90,21 @@ drop policy if exists "Allow authenticated users to delete ETL pack script links
 drop policy if exists "Allow authenticated users to read ETL script exports" on public.etl_script_exports;
 drop policy if exists "Allow authenticated users to insert ETL script exports" on public.etl_script_exports;
 
+drop policy if exists "Allow authenticated users to read ETL validation scripts" on public.etl_validation_scripts;
 create policy "Allow authenticated users to read ETL validation scripts"
 on public.etl_validation_scripts
 for select
 to authenticated
 using (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to insert ETL validation scripts" on public.etl_validation_scripts;
 create policy "Allow authenticated users to insert ETL validation scripts"
 on public.etl_validation_scripts
 for insert
 to authenticated
 with check (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to update ETL validation scripts" on public.etl_validation_scripts;
 create policy "Allow authenticated users to update ETL validation scripts"
 on public.etl_validation_scripts
 for update
@@ -109,24 +112,28 @@ to authenticated
 using (user_id is null or user_id = auth.uid())
 with check (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to delete ETL validation scripts" on public.etl_validation_scripts;
 create policy "Allow authenticated users to delete ETL validation scripts"
 on public.etl_validation_scripts
 for delete
 to authenticated
 using (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to read ETL validation packs" on public.etl_validation_packs;
 create policy "Allow authenticated users to read ETL validation packs"
 on public.etl_validation_packs
 for select
 to authenticated
 using (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to insert ETL validation packs" on public.etl_validation_packs;
 create policy "Allow authenticated users to insert ETL validation packs"
 on public.etl_validation_packs
 for insert
 to authenticated
 with check (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to update ETL validation packs" on public.etl_validation_packs;
 create policy "Allow authenticated users to update ETL validation packs"
 on public.etl_validation_packs
 for update
@@ -134,12 +141,14 @@ to authenticated
 using (user_id is null or user_id = auth.uid())
 with check (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to delete ETL validation packs" on public.etl_validation_packs;
 create policy "Allow authenticated users to delete ETL validation packs"
 on public.etl_validation_packs
 for delete
 to authenticated
 using (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to read ETL pack script links" on public.etl_validation_pack_scripts;
 create policy "Allow authenticated users to read ETL pack script links"
 on public.etl_validation_pack_scripts
 for select
@@ -153,6 +162,7 @@ using (
   )
 );
 
+drop policy if exists "Allow authenticated users to insert ETL pack script links" on public.etl_validation_pack_scripts;
 create policy "Allow authenticated users to insert ETL pack script links"
 on public.etl_validation_pack_scripts
 for insert
@@ -166,6 +176,7 @@ with check (
   )
 );
 
+drop policy if exists "Allow authenticated users to delete ETL pack script links" on public.etl_validation_pack_scripts;
 create policy "Allow authenticated users to delete ETL pack script links"
 on public.etl_validation_pack_scripts
 for delete
@@ -179,12 +190,14 @@ using (
   )
 );
 
+drop policy if exists "Allow authenticated users to read ETL script exports" on public.etl_script_exports;
 create policy "Allow authenticated users to read ETL script exports"
 on public.etl_script_exports
 for select
 to authenticated
 using (user_id is null or user_id = auth.uid());
 
+drop policy if exists "Allow authenticated users to insert ETL script exports" on public.etl_script_exports;
 create policy "Allow authenticated users to insert ETL script exports"
 on public.etl_script_exports
 for insert

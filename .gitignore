@@ -3,6 +3,7 @@ node_modules
 out
 build
 dist
+.demo-output
 .env
 .env.local
 .env*.local

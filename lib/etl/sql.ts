@@ -545,7 +545,7 @@ function normalizeScriptConfidence(script: ValidationScript): ValidationScript {
 
   const hasConcreteTable = Boolean(script.source_table || script.target_table);
   const hasConcreteColumn = Boolean(script.source_column || script.target_column);
-  const hasTodo = /TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN/i.test(script.sql_text);
+  const hasTodo = hasUnresolvedPlaceholder(script.sql_text);
 
   if (hasConcreteTable && hasConcreteColumn && !hasTodo) {
     return { ...script, confidence_score: 75 };
@@ -556,6 +556,10 @@ function normalizeScriptConfidence(script: ValidationScript): ValidationScript {
   }
 
   return { ...script, confidence_score: 40 };
+}
+
+function hasUnresolvedPlaceholder(sql: string) {
+  return /TODO_|\bSOURCE_COLUMN\b|\bTARGET_COLUMN\b|\bFROM\s+SOURCE_TABLE\b|\bFROM\s+TARGET_TABLE\b|\bJOIN\s+SOURCE_TABLE\b|\bJOIN\s+TARGET_TABLE\b/i.test(sql);
 }
 
 function buildInventoryCsv(scripts: ValidationScript[]) {

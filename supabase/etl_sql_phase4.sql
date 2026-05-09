@@ -229,14 +229,14 @@ set confidence_score = 75,
 where coalesce(confidence_score, 0) = 0
 and (source_table is not null or target_table is not null)
 and (source_column is not null or target_column is not null)
-and sql_text !~* '(TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN)';
+and sql_text !~* '(TODO_|\mSOURCE_COLUMN\M|\mTARGET_COLUMN\M|\mFROM\s+SOURCE_TABLE\M|\mFROM\s+TARGET_TABLE\M|\mJOIN\s+SOURCE_TABLE\M|\mJOIN\s+TARGET_TABLE\M)';
 
 update public.etl_validation_scripts
 set confidence_score = 65,
     updated_at = now()
 where coalesce(confidence_score, 0) = 0
 and (source_table is not null or target_table is not null)
-and sql_text !~* '(TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN)';
+and sql_text !~* '(TODO_|\mSOURCE_COLUMN\M|\mTARGET_COLUMN\M|\mFROM\s+SOURCE_TABLE\M|\mFROM\s+TARGET_TABLE\M|\mJOIN\s+SOURCE_TABLE\M|\mJOIN\s+TARGET_TABLE\M)';
 
 update public.etl_validation_scripts
 set confidence_score = 40,

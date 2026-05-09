@@ -191,9 +191,10 @@ export function generateRowCountScript(item: RuleItem | MappingItem, databaseTyp
   const target = ident(targetTable, databaseType);
   const sourceLabel = sourceTable ?? "SOURCE_TABLE";
   const targetLabel = targetTable ?? "TARGET_TABLE";
+  const loadDateColumn = "affected_columns" in item ? getFirstColumn(item.affected_columns, "LOAD_DT") : "LOAD_DT";
   const datePredicate = databaseType === "oracle"
-    ? "WHERE TRUNC(LOAD_DT) = :LOAD_DATE"
-    : "WHERE LOAD_DT = {{LOAD_DATE}}";
+    ? `WHERE TRUNC(${ident(loadDateColumn, databaseType)}) = :LOAD_DATE`
+    : `WHERE ${ident(loadDateColumn, databaseType)} = {{LOAD_DATE}}`;
 
   return makeScript({
     scriptName: `Row Count - ${sourceLabel} to ${targetLabel}`,
@@ -651,7 +652,7 @@ function resolveConfidence(value: number | null | undefined, context: {
 
   const hasConcreteTable = Boolean(context.sourceTable || context.targetTable);
   const hasConcreteColumn = Boolean(context.sourceColumn || context.targetColumn);
-  const hasTodo = /TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN/i.test(context.sql);
+  const hasTodo = hasUnresolvedPlaceholder(context.sql);
 
   if (hasConcreteTable && hasConcreteColumn && !hasTodo) {
     return { score: 75, source: "inferred" as const };
@@ -662,6 +663,10 @@ function resolveConfidence(value: number | null | undefined, context: {
   }
 
   return { score: 40, source: "review" as const };
+}
+
+function hasUnresolvedPlaceholder(sql: string) {
+  return /TODO_|\bSOURCE_COLUMN\b|\bTARGET_COLUMN\b|\bFROM\s+SOURCE_TABLE\b|\bFROM\s+TARGET_TABLE\b|\bJOIN\s+SOURCE_TABLE\b|\bJOIN\s+TARGET_TABLE\b/i.test(sql);
 }
 
 function sanitizeScriptName(value: string) {

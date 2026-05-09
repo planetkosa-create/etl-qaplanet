@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Clipboard } from "lucide-react";
 import { sqlSample } from "@/lib/etl/mock-data";
+import type { SqlSnapshot, ValidationScript } from "@/lib/etl/sql";
 
 const tabs = ["All", "SQL", "Oracle"];
 const keywordPattern =
@@ -27,10 +28,28 @@ function colorize(line: string) {
 export function CodeEditorPanel() {
   const [activeTab, setActiveTab] = useState("All");
   const [copied, setCopied] = useState(false);
-  const lines = useMemo(() => sqlSample.split("\n"), []);
+  const [latestScript, setLatestScript] = useState<ValidationScript | null>(null);
+  const sqlText = latestScript?.sql_text ?? sqlSample;
+  const lines = useMemo(() => sqlText.split("\n"), [sqlText]);
+
+  useEffect(() => {
+    async function loadLatestScript() {
+      try {
+        const response = await fetch("/api/etl/sql/scripts", { cache: "no-store" });
+        const result = (await response.json()) as SqlSnapshot & { success: boolean };
+        if (response.ok && result.success && result.latestScript) {
+          setLatestScript(result.latestScript);
+        }
+      } catch {
+        setLatestScript(null);
+      }
+    }
+
+    void loadLatestScript();
+  }, []);
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(sqlSample);
+    await navigator.clipboard.writeText(sqlText);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -38,7 +57,7 @@ export function CodeEditorPanel() {
   return (
     <section className="rounded-2xl border border-brand-border bg-brand-panel/75 shadow-panel-glow">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-border px-4 py-3">
-        <h2 className="text-base font-semibold text-brand-text">Generated Validation SQL</h2>
+        <h2 className="text-base font-semibold text-brand-text">{latestScript?.script_name ?? "Generated Validation SQL"}</h2>
         <div className="flex items-center gap-3">
           <div className="flex rounded-xl border border-brand-border bg-brand-background/70 p-1" role="tablist">
             {tabs.map((tab) => (
@@ -84,10 +103,10 @@ export function CodeEditorPanel() {
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-brand-border px-4 py-3 text-xs text-brand-secondary">
         <div className="flex flex-wrap items-center gap-5">
           <span>
-            Language: <span className="text-brand-text">Oracle SQL</span>
+            Language: <span className="text-brand-text">{latestScript?.database_type === "oracle" ? "Oracle SQL" : "SQL"}</span>
           </span>
           <span>
-            Database: <span className="text-brand-text">Oracle 19c</span>
+            Database: <span className="text-brand-text">{latestScript?.database_type ?? "Oracle 19c"}</span>
           </span>
         </div>
         <span>

@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { OracleChecksWorkspace } from "@/components/etl/OracleChecksWorkspace";
 
 export default function OracleChecksPage() {
-  return <PlaceholderPage {...placeholderPages["/oracle-checks"]} />;
+  return <OracleChecksWorkspace />;
 }

@@ -5,6 +5,7 @@ import { AnalysisRunControls } from "@/components/etl/AnalysisRunControls";
 import { GapsPanel } from "@/components/etl/GapsPanel";
 import { SummaryCards } from "@/components/etl/SummaryCards";
 import { labelize, type AnalysisSnapshot } from "@/lib/etl/analysis";
+import type { SqlSnapshot, ValidationScript } from "@/lib/etl/sql";
 
 export function DataQualityChecksWorkspace() {
   const [snapshot, setSnapshot] = useState<AnalysisSnapshot | null>(null);
@@ -12,16 +13,24 @@ export function DataQualityChecksWorkspace() {
   const [error, setError] = useState("");
   const [checkType, setCheckType] = useState("all");
   const [severity, setSeverity] = useState("all");
+  const [scripts, setScripts] = useState<ValidationScript[]>([]);
 
   async function loadAnalysis() {
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch("/api/etl/analysis", { cache: "no-store" });
+      const [response, scriptResponse] = await Promise.all([
+        fetch("/api/etl/analysis", { cache: "no-store" }),
+        fetch("/api/etl/sql/scripts", { cache: "no-store" }),
+      ]);
       const result = (await response.json()) as AnalysisSnapshot & { success: boolean; error?: string };
       if (!response.ok || !result.success) throw new Error(result.error ?? "Data quality checks could not be loaded.");
       setSnapshot(result);
+      if (scriptResponse.ok) {
+        const scriptResult = (await scriptResponse.json()) as SqlSnapshot & { success: boolean };
+        if (scriptResult.success) setScripts(scriptResult.scripts ?? []);
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Data quality checks could not be loaded.");
     } finally {
@@ -76,24 +85,35 @@ export function DataQualityChecksWorkspace() {
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-white/[0.02] text-xs uppercase tracking-wide text-brand-secondary">
                 <tr>
-                  {["Check Type", "Table", "Column", "Description", "Expected Condition", "Suggested Validation", "Severity", "Confidence"].map((heading) => (
+                  {["Check Type", "Table", "Column", "Description", "Expected Condition", "Generated SQL", "Severity", "Confidence", "Actions"].map((heading) => (
                     <th key={heading} className="px-4 py-3 font-semibold">{heading}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-border/70">
-                {checks.map((check) => (
-                  <tr key={check.id} className="text-brand-secondary transition hover:bg-white/[0.03]">
-                    <td className="px-4 py-3">{labelize(check.check_type)}</td>
-                    <td className="px-4 py-3 text-brand-text">{check.table_name || "-"}</td>
-                    <td className="px-4 py-3">{check.column_name || "-"}</td>
-                    <td className="max-w-sm truncate px-4 py-3">{check.description || "-"}</td>
-                    <td className="max-w-xs truncate px-4 py-3">{check.expected_condition || "-"}</td>
-                    <td className="max-w-xs truncate px-4 py-3">{check.suggested_validation || "-"}</td>
-                    <td className="px-4 py-3">{labelize(check.severity)}</td>
-                    <td className="px-4 py-3 font-semibold text-brand-teal">{check.confidence_score ?? 0}%</td>
-                  </tr>
-                ))}
+                {checks.map((check) => {
+                  const linkedScript = findLinkedScript(scripts, check.table_name, check.column_name, check.check_type);
+                  return (
+                    <tr key={check.id} className="text-brand-secondary transition hover:bg-white/[0.03]">
+                      <td className="px-4 py-3">{labelize(check.check_type)}</td>
+                      <td className="px-4 py-3 text-brand-text">{check.table_name || "-"}</td>
+                      <td className="px-4 py-3">{check.column_name || "-"}</td>
+                      <td className="max-w-sm truncate px-4 py-3">{check.description || "-"}</td>
+                      <td className="max-w-xs truncate px-4 py-3">{check.expected_condition || "-"}</td>
+                      <td className="px-4 py-3">{linkedScript ? <span className="text-brand-success">{linkedScript.script_name}</span> : <span className="text-brand-warning">Not generated</span>}</td>
+                      <td className="px-4 py-3">{labelize(check.severity)}</td>
+                      <td className="px-4 py-3 font-semibold text-brand-teal">{check.confidence_score ?? 0}%</td>
+                      <td className="px-4 py-3">
+                        {linkedScript ? (
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => void navigator.clipboard.writeText(linkedScript.sql_text)} className="rounded-lg border border-brand-border px-3 py-2 text-xs font-semibold text-[#7AA7FF] hover:bg-brand-primary/10">Copy</button>
+                            <button type="button" onClick={() => downloadSql(linkedScript)} className="rounded-lg border border-brand-border px-3 py-2 text-xs font-semibold text-[#7AA7FF] hover:bg-brand-primary/10">Download</button>
+                          </div>
+                        ) : "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -103,6 +123,26 @@ export function DataQualityChecksWorkspace() {
       <GapsPanel gaps={snapshot?.gaps ?? []} />
     </div>
   );
+}
+
+function findLinkedScript(scripts: ValidationScript[], tableName?: string | null, columnName?: string | null, checkType?: string | null) {
+  const category = checkType === "primary_key_integrity" ? "primary_key_integrity" : checkType;
+  return scripts.find((script) => {
+    if (category && script.validation_category !== category) return false;
+    if (tableName && script.target_table !== tableName && script.source_table !== tableName) return false;
+    if (columnName && script.target_column !== columnName && script.source_column !== columnName) return false;
+    return true;
+  });
+}
+
+function downloadSql(script: ValidationScript) {
+  const blob = new Blob([script.sql_text], { type: "application/sql" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${script.script_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.sql`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function Header({ title, description }: { title: string; description: string }) {

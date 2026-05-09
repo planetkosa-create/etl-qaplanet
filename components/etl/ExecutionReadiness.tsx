@@ -1,13 +1,34 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ClipboardCheck, Route, Zap } from "lucide-react";
+import type { SqlSnapshot } from "@/lib/etl/sql";
 
 export function ExecutionReadiness() {
   const [message, setMessage] = useState("");
+  const [counts, setCounts] = useState({ automatable: 34, review: 6, manual: 2, percent: 82 });
+
+  useEffect(() => {
+    async function loadReadiness() {
+      try {
+        const response = await fetch("/api/etl/sql/scripts", { cache: "no-store" });
+        const result = (await response.json()) as SqlSnapshot & { success: boolean };
+        if (!response.ok || !result.success || result.counts.scripts === 0) return;
+        const automatable = result.counts.readyScripts;
+        const review = result.counts.needsMappingReview;
+        const manual = result.counts.manualReview;
+        const percent = Math.round((automatable / Math.max(result.counts.scripts, 1)) * 100);
+        setCounts({ automatable, review, manual, percent });
+      } catch {
+        setCounts({ automatable: 34, review: 6, manual: 2, percent: 82 });
+      }
+    }
+
+    void loadReadiness();
+  }, []);
 
   function handleGenerate() {
-    setMessage("Export workflow placeholder ready for Phase 2.");
+    setMessage("Export Center is ready with generated validation scripts.");
     window.setTimeout(() => setMessage(""), 2600);
   }
 
@@ -19,11 +40,11 @@ export function ExecutionReadiness() {
           <div className="mt-3 flex items-center gap-4">
             <div
               className="flex h-16 w-16 items-center justify-center rounded-full"
-              style={{ background: "conic-gradient(#22C55E 0 82%, #1E334A 82% 100%)" }}
-              aria-label="Execution readiness is 82 percent"
+              style={{ background: `conic-gradient(#22C55E 0 ${counts.percent}%, #1E334A ${counts.percent}% 100%)` }}
+              aria-label={`Execution readiness is ${counts.percent} percent`}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-card text-sm font-bold text-white">
-                82%
+                {counts.percent}%
               </div>
             </div>
           </div>
@@ -31,24 +52,24 @@ export function ExecutionReadiness() {
 
         <ReadinessMetric
           title="Automatable"
-          value="34"
-          percent="82%"
+          value={String(counts.automatable)}
+          percent={`${counts.percent}%`}
           detail="Ready for execution"
           tone="green"
           icon={<Zap className="h-5 w-5" aria-hidden="true" />}
         />
         <ReadinessMetric
           title="Needs Mapping Review"
-          value="6"
-          percent="14%"
+          value={String(counts.review)}
+          percent={`${Math.round((counts.review / Math.max(counts.automatable + counts.review + counts.manual, 1)) * 100)}%`}
           detail="Review mappings"
           tone="orange"
           icon={<Route className="h-5 w-5" aria-hidden="true" />}
         />
         <ReadinessMetric
           title="Manual Review"
-          value="2"
-          percent="4%"
+          value={String(counts.manual)}
+          percent={`${Math.round((counts.manual / Math.max(counts.automatable + counts.review + counts.manual, 1)) * 100)}%`}
           detail="Requires manual review"
           tone="red"
           icon={<ClipboardCheck className="h-5 w-5" aria-hidden="true" />}

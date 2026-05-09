@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { ExportCenterWorkspace } from "@/components/etl/ExportCenterWorkspace";
 
 export default function ExportCenterPage() {
-  return <PlaceholderPage {...placeholderPages["/export-center"]} />;
+  return <ExportCenterWorkspace />;
 }

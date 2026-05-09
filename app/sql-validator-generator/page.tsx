@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { SqlValidatorGeneratorWorkspace } from "@/components/etl/SqlValidatorGeneratorWorkspace";
 
 export default function SqlValidatorGeneratorPage() {
-  return <PlaceholderPage {...placeholderPages["/sql-validator-generator"]} />;
+  return <SqlValidatorGeneratorWorkspace />;
 }

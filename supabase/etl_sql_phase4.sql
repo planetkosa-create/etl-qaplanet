@@ -1,7 +1,7 @@
 create table if not exists public.etl_validation_scripts (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid nullable,
-  user_id uuid nullable,
+  project_id uuid,
+  user_id uuid,
   analysis_run_id uuid references public.etl_analysis_runs(id) on delete set null,
   script_name text not null,
   script_type text not null,
@@ -22,8 +22,8 @@ create table if not exists public.etl_validation_scripts (
 
 create table if not exists public.etl_validation_packs (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid nullable,
-  user_id uuid nullable,
+  project_id uuid,
+  user_id uuid,
   analysis_run_id uuid references public.etl_analysis_runs(id) on delete set null,
   pack_name text not null,
   pack_type text not null,
@@ -43,8 +43,8 @@ create table if not exists public.etl_validation_pack_scripts (
 
 create table if not exists public.etl_script_exports (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid nullable,
-  user_id uuid nullable,
+  project_id uuid,
+  user_id uuid,
   pack_id uuid references public.etl_validation_packs(id) on delete set null,
   export_type text not null,
   file_name text not null,

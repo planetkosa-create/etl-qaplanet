@@ -180,20 +180,22 @@ export async function getAnalysisSnapshot(): Promise<AnalysisSnapshot> {
       throw new Error(firstError.message);
     }
 
-    const ruleItems = (rules.data ?? []) as RuleItem[];
+    const mappingItems = ((mappings.data ?? []) as MappingItem[]).map(normalizeMappingConfidence);
+    const ruleItems = ((rules.data ?? []) as RuleItem[]).map(normalizeRuleConfidence);
+    const qualityItems = ((checks.data ?? []) as DataQualityItem[]).map(normalizeDataQualityConfidence);
 
     return {
       configured: true,
       latestRun,
       runs: (runs ?? []) as AnalysisRun[],
-      mappings: (mappings.data ?? []) as MappingItem[],
+      mappings: mappingItems,
       rules: ruleItems,
-      dataQualityChecks: (checks.data ?? []) as DataQualityItem[],
+      dataQualityChecks: qualityItems,
       gaps: (gaps.data ?? []) as AnalysisGap[],
       counts: {
-        mappings: mappings.data?.length ?? 0,
+        mappings: mappingItems.length,
         rules: ruleItems.length,
-        dataQualityChecks: checks.data?.length ?? 0,
+        dataQualityChecks: qualityItems.length,
         gaps: gaps.data?.length ?? 0,
         reconciliationRules: ruleItems.filter((rule) => rule.rule_type === "reconciliation").length,
       },
@@ -267,4 +269,50 @@ export async function getProcessedArtifacts(projectId?: string | null, artifactI
 export function labelize(value?: string | null) {
   if (!value) return "Not specified";
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export function normalizeMappingConfidence(item: MappingItem): MappingItem {
+  const current = normalizeConfidenceValue(item.confidence_score);
+  if (current > 0) return { ...item, confidence_score: current };
+
+  const hasSource = Boolean(item.source_table && item.source_column);
+  const hasTarget = Boolean(item.target_table && item.target_column);
+  const hasRule = Boolean(item.transformation_rule || item.business_rule || item.join_condition || item.filter_condition);
+
+  if (hasSource && hasTarget && hasRule) return { ...item, confidence_score: 85 };
+  if (hasSource && hasTarget) return { ...item, confidence_score: 75 };
+  if (item.source_table || item.target_table) return { ...item, confidence_score: 60 };
+  return { ...item, confidence_score: 40 };
+}
+
+export function normalizeRuleConfidence(item: RuleItem): RuleItem {
+  const current = normalizeConfidenceValue(item.confidence_score);
+  if (current > 0) return { ...item, confidence_score: current };
+
+  const hasTables = Boolean(item.affected_tables?.length);
+  const hasColumns = Boolean(item.affected_columns?.length);
+  const hasIntent = Boolean(item.validation_intent || item.description || item.source_expression || item.target_expression);
+
+  if (hasTables && hasColumns && hasIntent) return { ...item, confidence_score: 85 };
+  if (hasTables && hasIntent) return { ...item, confidence_score: 75 };
+  if (hasIntent) return { ...item, confidence_score: 60 };
+  return { ...item, confidence_score: 40 };
+}
+
+export function normalizeDataQualityConfidence(item: DataQualityItem): DataQualityItem {
+  const current = normalizeConfidenceValue(item.confidence_score);
+  if (current > 0) return { ...item, confidence_score: current };
+
+  const hasTarget = Boolean(item.table_name && item.column_name);
+  const hasCondition = Boolean(item.expected_condition || item.suggested_validation || item.description);
+
+  if (hasTarget && hasCondition) return { ...item, confidence_score: 85 };
+  if (item.table_name && hasCondition) return { ...item, confidence_score: 70 };
+  if (hasCondition) return { ...item, confidence_score: 55 };
+  return { ...item, confidence_score: 40 };
+}
+
+function normalizeConfidenceValue(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
 }

@@ -1,5 +1,18 @@
 import { getSupabaseOrThrow, type EtlArtifact, type JsonValue } from "@/lib/etl/artifacts";
-import { mappingTypes, ruleTypes, severities, type MappingType, type RuleType, type Severity } from "@/lib/etl/analysis";
+import {
+  mappingTypes,
+  normalizeDataQualityConfidence,
+  normalizeMappingConfidence,
+  normalizeRuleConfidence,
+  ruleTypes,
+  severities,
+  type DataQualityItem,
+  type MappingItem,
+  type MappingType,
+  type RuleItem,
+  type RuleType,
+  type Severity,
+} from "@/lib/etl/analysis";
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const MAX_ARTIFACT_TEXT = 12000;
@@ -169,10 +182,13 @@ export function normalizeEtlAnalysisResponse(payload: unknown): NormalizedEtlAna
       tables_detected: asStringArray(summary.tables_detected),
       overall_confidence: clampConfidence(summary.overall_confidence),
     },
-    mappings: asArray(value.mappings).map((item) => {
+    mappings: asArray(value.mappings).map((item, index) => {
       const row = isRecord(item) ? item : {};
 
-      return {
+      const mapping = {
+        id: `normalized-mapping-${index}`,
+        analysis_run_id: "normalized",
+        artifact_id: null,
         source_system: asString(row.source_system),
         source_table: asString(row.source_table),
         source_column: asString(row.source_column),
@@ -188,12 +204,35 @@ export function normalizeEtlAnalysisResponse(payload: unknown): NormalizedEtlAna
         is_required: Boolean(row.is_required),
         is_key: Boolean(row.is_key),
         confidence_score: clampConfidence(row.confidence_score),
+        created_at: new Date().toISOString(),
+      } satisfies MappingItem;
+
+      const normalized = normalizeMappingConfidence(mapping);
+      return {
+        source_system: normalized.source_system ?? "",
+        source_table: normalized.source_table ?? "",
+        source_column: normalized.source_column ?? "",
+        target_system: normalized.target_system ?? "",
+        target_table: normalized.target_table ?? "",
+        target_column: normalized.target_column ?? "",
+        data_type: normalized.data_type ?? "",
+        transformation_rule: normalized.transformation_rule ?? "",
+        business_rule: normalized.business_rule ?? "",
+        mapping_type: normalized.mapping_type,
+        join_condition: normalized.join_condition ?? "",
+        filter_condition: normalized.filter_condition ?? "",
+        is_required: normalized.is_required,
+        is_key: normalized.is_key,
+        confidence_score: normalized.confidence_score ?? 0,
       };
     }),
     rules: asArray(value.rules).map((item, index) => {
       const row = isRecord(item) ? item : {};
 
-      return {
+      const rule = {
+        id: `normalized-rule-${index}`,
+        analysis_run_id: "normalized",
+        artifact_id: null,
         rule_reference: asString(row.rule_reference) || `RULE-${String(index + 1).padStart(3, "0")}`,
         rule_type: normalizeEnum(row.rule_type, ruleTypes, "other"),
         title: asString(row.title),
@@ -205,12 +244,31 @@ export function normalizeEtlAnalysisResponse(payload: unknown): NormalizedEtlAna
         affected_columns: asStringArray(row.affected_columns),
         severity: normalizeEnum(row.severity, severities, "medium"),
         confidence_score: clampConfidence(row.confidence_score),
+        created_at: new Date().toISOString(),
+      } satisfies RuleItem;
+
+      const normalized = normalizeRuleConfidence(rule);
+      return {
+        rule_reference: normalized.rule_reference ?? "",
+        rule_type: normalized.rule_type,
+        title: normalized.title ?? "",
+        description: normalized.description ?? "",
+        source_expression: normalized.source_expression ?? "",
+        target_expression: normalized.target_expression ?? "",
+        validation_intent: normalized.validation_intent ?? "",
+        affected_tables: normalized.affected_tables ?? [],
+        affected_columns: normalized.affected_columns ?? [],
+        severity: normalized.severity,
+        confidence_score: normalized.confidence_score ?? 0,
       };
     }),
-    data_quality_checks: asArray(value.data_quality_checks).map((item) => {
+    data_quality_checks: asArray(value.data_quality_checks).map((item, index) => {
       const row = isRecord(item) ? item : {};
 
-      return {
+      const check = {
+        id: `normalized-check-${index}`,
+        analysis_run_id: "normalized",
+        artifact_id: null,
         check_type: asString(row.check_type) || "data_quality",
         table_name: asString(row.table_name),
         column_name: asString(row.column_name),
@@ -219,6 +277,19 @@ export function normalizeEtlAnalysisResponse(payload: unknown): NormalizedEtlAna
         suggested_validation: asString(row.suggested_validation),
         severity: normalizeEnum(row.severity, severities, "medium"),
         confidence_score: clampConfidence(row.confidence_score),
+        created_at: new Date().toISOString(),
+      } satisfies DataQualityItem;
+
+      const normalized = normalizeDataQualityConfidence(check);
+      return {
+        check_type: normalized.check_type ?? "data_quality",
+        table_name: normalized.table_name ?? "",
+        column_name: normalized.column_name ?? "",
+        description: normalized.description ?? "",
+        expected_condition: normalized.expected_condition ?? "",
+        suggested_validation: normalized.suggested_validation ?? "",
+        severity: normalized.severity,
+        confidence_score: normalized.confidence_score ?? 0,
       };
     }),
     gaps: asArray(value.gaps).map((item) => {

@@ -140,3 +140,45 @@ create policy "Allow authenticated users to manage analysis gaps"
 on public.etl_analysis_gaps for all to authenticated
 using (user_id is null or user_id = auth.uid())
 with check (user_id is null or user_id = auth.uid());
+
+update public.etl_mapping_items
+set confidence_score = case
+  when source_table is not null and source_column is not null and target_table is not null and target_column is not null
+       and (transformation_rule is not null or business_rule is not null or join_condition is not null or filter_condition is not null)
+    then 85
+  when source_table is not null and source_column is not null and target_table is not null and target_column is not null
+    then 75
+  when source_table is not null or target_table is not null
+    then 60
+  else 40
+end
+where coalesce(confidence_score, 0) = 0;
+
+update public.etl_rule_items
+set confidence_score = case
+  when cardinality(coalesce(affected_tables, array[]::text[])) > 0
+       and cardinality(coalesce(affected_columns, array[]::text[])) > 0
+       and (validation_intent is not null or description is not null or source_expression is not null or target_expression is not null)
+    then 85
+  when cardinality(coalesce(affected_tables, array[]::text[])) > 0
+       and (validation_intent is not null or description is not null or source_expression is not null or target_expression is not null)
+    then 75
+  when validation_intent is not null or description is not null or source_expression is not null or target_expression is not null
+    then 60
+  else 40
+end
+where coalesce(confidence_score, 0) = 0;
+
+update public.etl_data_quality_items
+set confidence_score = case
+  when table_name is not null and column_name is not null
+       and (expected_condition is not null or suggested_validation is not null or description is not null)
+    then 85
+  when table_name is not null
+       and (expected_condition is not null or suggested_validation is not null or description is not null)
+    then 70
+  when expected_condition is not null or suggested_validation is not null or description is not null
+    then 55
+  else 40
+end
+where coalesce(confidence_score, 0) = 0;

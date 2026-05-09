@@ -8,6 +8,7 @@ import {
 } from "@/lib/etl/artifacts";
 import { parseArtifact } from "@/lib/etl/artifact-parser";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-auth";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,11 @@ type RouteContext = {
 };
 
 export async function POST(_request: Request, context: RouteContext) {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {

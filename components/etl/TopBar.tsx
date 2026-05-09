@@ -1,6 +1,19 @@
-import { Bell, ChevronDown, CircleHelp, Search } from "lucide-react";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { Bell, ChevronDown, CircleHelp, LogOut, Search } from "lucide-react";
+import { createSupabaseBrowserAuthClient } from "@/lib/supabase/auth-browser";
 
 export function TopBar() {
+  const router = useRouter();
+
+  async function handleSignOut() {
+    const supabase = createSupabaseBrowserAuthClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header className="sticky top-0 z-20 border-b border-brand-border bg-brand-background/85 px-4 py-3 backdrop-blur-xl sm:px-6">
       <div className="flex items-center justify-end gap-3">
@@ -28,11 +41,7 @@ export function TopBar() {
         >
           <CircleHelp className="h-5 w-5" aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className="ml-1 flex items-center gap-3 rounded-2xl border border-brand-border bg-brand-card/70 px-3 py-2 text-left transition hover:border-brand-primary/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal"
-          aria-label="Open user menu"
-        >
+        <div className="ml-1 flex items-center gap-2 rounded-2xl border border-brand-border bg-brand-card/70 px-3 py-2 text-left">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-electric to-brand-teal text-sm font-bold text-white">
             OK
           </span>
@@ -41,7 +50,16 @@ export function TopBar() {
             <span className="block text-xs text-brand-secondary">QA Manager</span>
           </span>
           <ChevronDown className="h-4 w-4 text-brand-secondary" aria-hidden="true" />
-        </button>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-brand-secondary transition hover:bg-brand-background hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </header>
   );

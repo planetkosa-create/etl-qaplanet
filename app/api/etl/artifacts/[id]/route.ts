@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteArtifact, getArtifact } from "@/lib/etl/artifacts";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-auth";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,11 @@ type RouteContext = {
 };
 
 export async function GET(_request: Request, context: RouteContext) {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {
@@ -44,6 +50,11 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {

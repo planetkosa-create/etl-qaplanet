@@ -236,7 +236,12 @@ export function normalizeEtlAnalysisResponse(payload: unknown): NormalizedEtlAna
   };
 }
 
-export async function saveEtlAnalysisResults(analysisRunId: string, result: NormalizedEtlAnalysis, artifactId?: string | null) {
+export async function saveEtlAnalysisResults(
+  analysisRunId: string,
+  result: NormalizedEtlAnalysis,
+  artifactId?: string | null,
+  userId?: string | null,
+) {
   const supabase = getSupabaseOrThrow();
 
   const [mappingResult, ruleResult, qualityResult, gapResult] = await Promise.all([
@@ -245,6 +250,7 @@ export async function saveEtlAnalysisResults(analysisRunId: string, result: Norm
           result.mappings.map((item) => ({
             analysis_run_id: analysisRunId,
             artifact_id: artifactId ?? null,
+            user_id: userId ?? null,
             ...item,
           })),
         )
@@ -254,6 +260,7 @@ export async function saveEtlAnalysisResults(analysisRunId: string, result: Norm
           result.rules.map((item) => ({
             analysis_run_id: analysisRunId,
             artifact_id: artifactId ?? null,
+            user_id: userId ?? null,
             ...item,
           })),
         )
@@ -263,6 +270,7 @@ export async function saveEtlAnalysisResults(analysisRunId: string, result: Norm
           result.data_quality_checks.map((item) => ({
             analysis_run_id: analysisRunId,
             artifact_id: artifactId ?? null,
+            user_id: userId ?? null,
             ...item,
           })),
         )
@@ -272,6 +280,7 @@ export async function saveEtlAnalysisResults(analysisRunId: string, result: Norm
           result.gaps.map((item) => ({
             analysis_run_id: analysisRunId,
             artifact_id: artifactId ?? null,
+            user_id: userId ?? null,
             ...item,
           })),
         )

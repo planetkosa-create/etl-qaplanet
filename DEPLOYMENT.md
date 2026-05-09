@@ -99,7 +99,10 @@ In Supabase Authentication > URL Configuration:
 - Site URL: `https://etl.qaplanet.ca`
 - Additional Redirect URLs:
   - `https://etl.qaplanet.ca/auth/callback`
+  - `https://etl.qaplanet.ca/dashboard`
   - `http://localhost:3000/auth/callback`
   - `http://localhost:3002/auth/callback`
+  - `http://localhost:3000/dashboard`
+  - `http://localhost:3002/dashboard`
 
 The anon public key is safe to use in the browser, but the service role key must never be added to the frontend or Vercel public variables.

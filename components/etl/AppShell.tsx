@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/etl/Sidebar";
 import { TopBar } from "@/components/etl/TopBar";
 
@@ -7,6 +10,13 @@ type AppShellProps = {
 };
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
+  const isAuthRoute = pathname === "/login" || pathname === "/signup" || pathname.startsWith("/auth/");
+
+  if (isAuthRoute) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen bg-brand-background text-brand-text">
       <div className="flex min-h-screen">

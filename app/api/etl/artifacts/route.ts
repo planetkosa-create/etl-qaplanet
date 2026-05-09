@@ -15,10 +15,16 @@ import {
 } from "@/lib/etl/artifacts";
 import { parseArtifact } from "@/lib/etl/artifact-parser";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   const result = await listArtifacts();
 
   return NextResponse.json({
@@ -28,6 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {
@@ -58,7 +69,7 @@ export async function POST(request: Request) {
     const artifacts: EtlArtifact[] = [];
 
     for (const file of files) {
-      const artifact = await processUpload(file, sourceKind);
+      const artifact = await processUpload(file, sourceKind, auth.user.id);
       artifacts.push(artifact);
     }
 
@@ -79,7 +90,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function processUpload(file: File, sourceKind: SourceKind) {
+async function processUpload(file: File, sourceKind: SourceKind, userId: string) {
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new Error("File is too large. Maximum supported size is 20 MB.");
   }
@@ -111,6 +122,7 @@ async function processUpload(file: File, sourceKind: SourceKind) {
       file_size: file.size,
       storage_path: storagePath,
       source_kind: sourceKind,
+      user_id: userId,
       processing_status: "processing",
     })
     .select("*")

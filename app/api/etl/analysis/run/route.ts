@@ -3,6 +3,7 @@ import { runEtlAnalysisForArtifacts, saveEtlAnalysisResults } from "@/lib/etl/ai
 import { getProcessedArtifacts } from "@/lib/etl/analysis";
 import { getSupabaseOrThrow, type EtlArtifact } from "@/lib/etl/artifacts";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-auth";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,11 @@ type RunRequest = {
 };
 
 export async function POST(request: Request) {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {
@@ -57,6 +63,7 @@ export async function POST(request: Request) {
       .insert({
         project_id: body.projectId ?? null,
         run_name: `ETL Analysis ${new Date().toLocaleString("en")}`,
+        user_id: auth.user.id,
         status: "running",
         artifact_count: artifacts.length,
         model_name: process.env.OPENAI_MODEL || "gpt-4.1-mini",
@@ -72,7 +79,7 @@ export async function POST(request: Request) {
 
     runId = run.id;
     const result = await runEtlAnalysisForArtifacts(artifacts);
-    await saveEtlAnalysisResults(run.id, result);
+    await saveEtlAnalysisResults(run.id, result, null, auth.user.id);
 
     const counts = {
       mappings: result.mappings.length,

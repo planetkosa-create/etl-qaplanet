@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { getAnalysisSnapshot, resetAnalysisData } from "@/lib/etl/analysis";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   const snapshot = await getAnalysisSnapshot();
 
   return NextResponse.json({
@@ -14,6 +20,11 @@ export async function GET() {
 }
 
 export async function DELETE() {
+  const auth = await requireUser();
+  if (!auth.user) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {

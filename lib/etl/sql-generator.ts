@@ -539,6 +539,13 @@ function makeScript(input: {
   sql: string;
 }): GeneratedValidationScript {
   const sqlText = formatSql(input.sql);
+  const confidence = resolveConfidence(input.confidence, {
+    sourceTable: input.sourceTable,
+    targetTable: input.targetTable,
+    sourceColumn: input.sourceColumn,
+    targetColumn: input.targetColumn,
+    sql: sqlText,
+  });
   return {
     script_name: sanitizeScriptName(input.scriptName),
     script_type: input.scriptType,
@@ -551,7 +558,7 @@ function makeScript(input: {
     sql_text: sqlText,
     description: input.description,
     generated_from: input.generatedFrom,
-    confidence_score: clampConfidence(input.confidence),
+    confidence_score: confidence.score,
     execution_status: "ready",
   };
 }
@@ -628,6 +635,33 @@ function getSecondColumn(columns?: string[] | null, fallback = "TARGET_COLUMN") 
 function clampConfidence(value?: number | null) {
   if (typeof value !== "number" || Number.isNaN(value)) return null;
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function resolveConfidence(value: number | null | undefined, context: {
+  sourceTable?: string | null;
+  targetTable?: string | null;
+  sourceColumn?: string | null;
+  targetColumn?: string | null;
+  sql: string;
+}) {
+  const score = clampConfidence(value);
+  if (score && score > 0) {
+    return { score, source: "source" as const };
+  }
+
+  const hasConcreteTable = Boolean(context.sourceTable || context.targetTable);
+  const hasConcreteColumn = Boolean(context.sourceColumn || context.targetColumn);
+  const hasTodo = /TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN/i.test(context.sql);
+
+  if (hasConcreteTable && hasConcreteColumn && !hasTodo) {
+    return { score: 75, source: "inferred" as const };
+  }
+
+  if (hasConcreteTable && !hasTodo) {
+    return { score: 65, source: "inferred" as const };
+  }
+
+  return { score: 40, source: "review" as const };
 }
 
 function sanitizeScriptName(value: string) {

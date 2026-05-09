@@ -206,7 +206,7 @@ export async function getSqlSnapshot(filters?: {
     const firstError = scriptResult.error ?? packResult.error;
     if (firstError) throw new Error(firstError.message);
 
-    const scripts = (scriptResult.data ?? []) as ValidationScript[];
+    const scripts = ((scriptResult.data ?? []) as ValidationScript[]).map(normalizeScriptConfidence);
     const packs = (packResult.data ?? []) as ValidationPack[];
 
     return {
@@ -272,26 +272,41 @@ export async function generateAndSaveValidationSql(request: GenerateSqlRequest, 
     throw new Error("Generated SQL contains a restricted statement and was not saved.");
   }
 
-  const { data: savedScripts, error } = await supabase
+  await removeRegeneratedScriptDuplicates({
+    analysisRunId,
+    databaseType: normalizeDatabaseType(request.databaseType),
+    generatedFrom: rows.map((script) => script.generated_from).filter(Boolean),
+    categories: rows.map((script) => script.validation_category),
+  });
+
+  const { error } = await supabase
     .from("etl_validation_scripts")
-    .insert(rows)
-    .select("*");
+    .insert(rows);
 
   if (error) throw new Error(error.message);
 
-  const scripts = (savedScripts ?? []) as ValidationScript[];
+  const allScriptsForRun = (await getSqlSnapshot({
+    analysisRunId,
+    databaseType: request.databaseType,
+  })).scripts;
+
+  await removeValidationPacksForScope({
+    analysisRunId,
+    databaseType: normalizeDatabaseType(request.databaseType),
+  });
+
   const packs = await generateValidationPacksForScripts({
     projectId: request.projectId ?? null,
     userId,
     analysisRunId,
     databaseType: normalizeDatabaseType(request.databaseType),
-    scripts,
+    scripts: allScriptsForRun,
   });
 
   return {
-    scripts,
+    scripts: allScriptsForRun,
     packs,
-    counts: buildSqlCounts(scripts, packs),
+    counts: buildSqlCounts(allScriptsForRun, packs),
   };
 }
 
@@ -352,7 +367,7 @@ export async function getValidationScript(id: string) {
   const supabase = getSupabaseOrThrow();
   const { data, error } = await supabase.from("etl_validation_scripts").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
-  return data as ValidationScript;
+  return normalizeScriptConfidence(data as ValidationScript);
 }
 
 export async function deleteValidationScript(id: string) {
@@ -414,7 +429,7 @@ async function resolveExportScripts(request: ExportRequest) {
       .in("id", request.scriptIds)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []) as ValidationScript[];
+    return ((data ?? []) as ValidationScript[]).map(normalizeScriptConfidence);
   }
 
   if (request.packId) {
@@ -427,7 +442,7 @@ async function resolveExportScripts(request: ExportRequest) {
     if (ids.length === 0) return [];
     const { data, error } = await supabase.from("etl_validation_scripts").select("*").in("id", ids);
     if (error) throw new Error(error.message);
-    return (data ?? []) as ValidationScript[];
+    return ((data ?? []) as ValidationScript[]).map(normalizeScriptConfidence);
   }
 
   return (await getSqlSnapshot({ projectId: request.projectId })).scripts;
@@ -487,6 +502,60 @@ function buildSqlCounts(scripts: ValidationScript[], packs: ValidationPack[]): S
     needsMappingReview: scripts.filter((script) => (script.confidence_score ?? 100) < 70).length,
     manualReview: scripts.filter((script) => (script.confidence_score ?? 100) < 50 || script.execution_status === "failed_validation").length,
   };
+}
+
+async function removeRegeneratedScriptDuplicates(input: {
+  analysisRunId: string | null;
+  databaseType: DatabaseType;
+  generatedFrom: string[];
+  categories: ValidationCategory[];
+}) {
+  if (input.generatedFrom.length === 0) return;
+  const supabase = getSupabaseOrThrow();
+  let query = supabase
+    .from("etl_validation_scripts")
+    .delete()
+    .eq("database_type", input.databaseType)
+    .in("generated_from", [...new Set(input.generatedFrom)])
+    .in("validation_category", [...new Set(input.categories)]);
+
+  query = input.analysisRunId ? query.eq("analysis_run_id", input.analysisRunId) : query.is("analysis_run_id", null);
+  const { error } = await query;
+  if (error) throw new Error(error.message);
+}
+
+async function removeValidationPacksForScope(input: {
+  analysisRunId: string | null;
+  databaseType: DatabaseType;
+}) {
+  const supabase = getSupabaseOrThrow();
+  let query = supabase
+    .from("etl_validation_packs")
+    .delete()
+    .eq("database_type", input.databaseType);
+
+  query = input.analysisRunId ? query.eq("analysis_run_id", input.analysisRunId) : query.is("analysis_run_id", null);
+  const { error } = await query;
+  if (error) throw new Error(error.message);
+}
+
+function normalizeScriptConfidence(script: ValidationScript): ValidationScript {
+  const score = typeof script.confidence_score === "number" ? script.confidence_score : null;
+  if (score && score > 0) return script;
+
+  const hasConcreteTable = Boolean(script.source_table || script.target_table);
+  const hasConcreteColumn = Boolean(script.source_column || script.target_column);
+  const hasTodo = /TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN/i.test(script.sql_text);
+
+  if (hasConcreteTable && hasConcreteColumn && !hasTodo) {
+    return { ...script, confidence_score: 75 };
+  }
+
+  if (hasConcreteTable && !hasTodo) {
+    return { ...script, confidence_score: 65 };
+  }
+
+  return { ...script, confidence_score: 40 };
 }
 
 function buildInventoryCsv(scripts: ValidationScript[]) {

@@ -76,6 +76,20 @@ alter table public.etl_validation_packs enable row level security;
 alter table public.etl_validation_pack_scripts enable row level security;
 alter table public.etl_script_exports enable row level security;
 
+drop policy if exists "Allow authenticated users to read ETL validation scripts" on public.etl_validation_scripts;
+drop policy if exists "Allow authenticated users to insert ETL validation scripts" on public.etl_validation_scripts;
+drop policy if exists "Allow authenticated users to update ETL validation scripts" on public.etl_validation_scripts;
+drop policy if exists "Allow authenticated users to delete ETL validation scripts" on public.etl_validation_scripts;
+drop policy if exists "Allow authenticated users to read ETL validation packs" on public.etl_validation_packs;
+drop policy if exists "Allow authenticated users to insert ETL validation packs" on public.etl_validation_packs;
+drop policy if exists "Allow authenticated users to update ETL validation packs" on public.etl_validation_packs;
+drop policy if exists "Allow authenticated users to delete ETL validation packs" on public.etl_validation_packs;
+drop policy if exists "Allow authenticated users to read ETL pack script links" on public.etl_validation_pack_scripts;
+drop policy if exists "Allow authenticated users to insert ETL pack script links" on public.etl_validation_pack_scripts;
+drop policy if exists "Allow authenticated users to delete ETL pack script links" on public.etl_validation_pack_scripts;
+drop policy if exists "Allow authenticated users to read ETL script exports" on public.etl_script_exports;
+drop policy if exists "Allow authenticated users to insert ETL script exports" on public.etl_script_exports;
+
 create policy "Allow authenticated users to read ETL validation scripts"
 on public.etl_validation_scripts
 for select
@@ -176,3 +190,42 @@ on public.etl_script_exports
 for insert
 to authenticated
 with check (user_id is null or user_id = auth.uid());
+
+with ranked_scripts as (
+  select
+    id,
+    row_number() over (
+      partition by
+        coalesce(analysis_run_id::text, ''),
+        database_type,
+        validation_category,
+        coalesce(generated_from, ''),
+        script_name
+      order by created_at desc
+    ) as duplicate_rank
+  from public.etl_validation_scripts
+)
+delete from public.etl_validation_scripts scripts
+using ranked_scripts ranked
+where scripts.id = ranked.id
+and ranked.duplicate_rank > 1;
+
+update public.etl_validation_scripts
+set confidence_score = 75,
+    updated_at = now()
+where coalesce(confidence_score, 0) = 0
+and (source_table is not null or target_table is not null)
+and (source_column is not null or target_column is not null)
+and sql_text !~* '(TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN)';
+
+update public.etl_validation_scripts
+set confidence_score = 65,
+    updated_at = now()
+where coalesce(confidence_score, 0) = 0
+and (source_table is not null or target_table is not null)
+and sql_text !~* '(TODO_|SOURCE_TABLE|TARGET_TABLE|SOURCE_COLUMN|TARGET_COLUMN)';
+
+update public.etl_validation_scripts
+set confidence_score = 40,
+    updated_at = now()
+where coalesce(confidence_score, 0) = 0;

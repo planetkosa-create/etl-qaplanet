@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileArchive, FileCode2, FileSpreadsheet, PackageCheck } from "lucide-react";
+import { Download, FileArchive, FileCode2, FileSpreadsheet, PackageCheck, ShieldCheck } from "lucide-react";
 import { SummaryCards } from "@/components/etl/SummaryCards";
 import { StatusBadge } from "@/components/etl/StatusBadge";
 import { labelize } from "@/lib/etl/analysis";
+import type { ExecutionSnapshot } from "@/lib/etl/execution";
 import type { SqlSnapshot, ValidationPack, ValidationScript } from "@/lib/etl/sql";
 
 const exportOptions = [
@@ -12,6 +13,11 @@ const exportOptions = [
   { value: "zip_package", label: "Export validation pack as ZIP", icon: FileArchive },
   { value: "csv_inventory", label: "Export script inventory CSV", icon: FileSpreadsheet },
   { value: "markdown_report", label: "Export markdown validation report", icon: PackageCheck },
+  { value: "oracle_sql_zip", label: "Export Oracle SQL ZIP", icon: FileArchive },
+  { value: "execution_results_csv", label: "Export Execution Results CSV", icon: FileSpreadsheet },
+  { value: "audit_report_markdown", label: "Export Audit Report Markdown", icon: PackageCheck },
+  { value: "evidence_package", label: "Export Evidence Package ZIP", icon: ShieldCheck },
+  { value: "full_validation_package", label: "Export Full Validation Package", icon: PackageCheck },
 ] as const;
 
 type ExportResponse = {
@@ -25,7 +31,9 @@ type ExportResponse = {
 
 export function ExportCenterWorkspace() {
   const [snapshot, setSnapshot] = useState<SqlSnapshot | null>(null);
+  const [execution, setExecution] = useState<ExecutionSnapshot | null>(null);
   const [selectedPackId, setSelectedPackId] = useState("");
+  const [selectedRunId, setSelectedRunId] = useState("");
   const [selectedScriptIds, setSelectedScriptIds] = useState<string[]>([]);
   const [exportType, setExportType] = useState<(typeof exportOptions)[number]["value"]>("sql_file");
   const [loading, setLoading] = useState(true);
@@ -36,12 +44,22 @@ export function ExportCenterWorkspace() {
   useEffect(() => {
     async function loadExportData() {
       try {
-        const response = await fetch("/api/etl/sql/scripts", { cache: "no-store" });
+        const [response, executionResponse] = await Promise.all([
+          fetch("/api/etl/sql/scripts", { cache: "no-store" }),
+          fetch("/api/etl/execution/runs", { cache: "no-store" }),
+        ]);
         const result = (await response.json()) as SqlSnapshot & { success: boolean; error?: string };
         if (!response.ok || !result.success) throw new Error(result.error ?? "Export data could not be loaded.");
         setSnapshot(result);
         setSelectedPackId(result.packs[0]?.id ?? "");
         setSelectedScriptIds(result.scripts.slice(0, 5).map((script) => script.id));
+        if (executionResponse.ok) {
+          const executionResult = (await executionResponse.json()) as ExecutionSnapshot & { success: boolean };
+          if (executionResult.success) {
+            setExecution(executionResult);
+            setSelectedRunId(executionResult.latestRun?.id ?? executionResult.runs[0]?.id ?? "");
+          }
+        }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Export data could not be loaded.");
       } finally {
@@ -58,14 +76,48 @@ export function ExportCenterWorkspace() {
     setMessage("Preparing validation export...");
 
     try {
-      const response = await fetch("/api/etl/sql/export", {
+      if (exportType === "execution_results_csv") {
+        const content = buildExecutionResultsCsv(execution, selectedRunId);
+        downloadFile({
+          success: true,
+          fileName: "etl-execution-results.csv",
+          fileContent: content,
+          contentType: "text/csv",
+          encoding: "text",
+        });
+        setMessage("Export ready: etl-execution-results.csv");
+        return;
+      }
+
+      if (exportType === "audit_report_markdown") {
+        if (!selectedRunId) throw new Error("Choose an execution run before exporting an audit report.");
+        const response = await fetch("/api/etl/reports/audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ executionRunId: selectedRunId, format: "markdown" }),
+        });
+        const result = (await response.json()) as ExportResponse & { content?: string };
+        if (!response.ok || !result.success || !result.content || !result.fileName) throw new Error(result.error ?? "Audit report could not be exported.");
+        downloadFile({ ...result, fileContent: result.content, contentType: "text/markdown", encoding: "text" });
+        setMessage(`Export ready: ${result.fileName}`);
+        return;
+      }
+
+      const isPhase5Package = ["oracle_sql_zip", "evidence_package", "full_validation_package"].includes(exportType);
+      const response = await fetch(isPhase5Package ? "/api/etl/exports/package" : "/api/etl/sql/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          exportType,
-          packId: exportType === "zip_package" ? selectedPackId || undefined : undefined,
-          scriptIds: exportType !== "zip_package" ? selectedScriptIds : undefined,
-        }),
+        body: JSON.stringify(isPhase5Package
+          ? {
+              packageType: exportType,
+              validationPackId: exportType === "oracle_sql_zip" ? selectedPackId || undefined : undefined,
+              executionRunId: exportType !== "oracle_sql_zip" ? selectedRunId || undefined : undefined,
+            }
+          : {
+              exportType,
+              packId: exportType === "zip_package" ? selectedPackId || undefined : undefined,
+              scriptIds: exportType !== "zip_package" ? selectedScriptIds : undefined,
+            }),
       });
       const result = (await response.json()) as ExportResponse;
       if (!response.ok || !result.success || !result.fileContent || !result.fileName) {
@@ -84,6 +136,7 @@ export function ExportCenterWorkspace() {
   const scripts = useMemo(() => snapshot?.scripts ?? [], [snapshot?.scripts]);
   const packs = useMemo(() => snapshot?.packs ?? [], [snapshot?.packs]);
   const selectedPack = packs.find((pack) => pack.id === selectedPackId) ?? null;
+  const runs = execution?.runs ?? [];
   const selectedScripts = useMemo(() => scripts.filter((script) => selectedScriptIds.includes(script.id)), [scripts, selectedScriptIds]);
 
   return (
@@ -100,7 +153,7 @@ export function ExportCenterWorkspace() {
         { label: "Available scripts", value: scripts.length, accent: "blue" as const },
         { label: "Validation packs", value: packs.length, accent: "green" as const },
         { label: "Selected scripts", value: selectedScripts.length, accent: "teal" as const },
-        { label: "Ready exports", value: scripts.length > 0 ? 4 : 0, accent: "orange" as const },
+        { label: "Ready exports", value: scripts.length > 0 ? 9 : 0, accent: "orange" as const },
       ]} />
 
       <div className="grid gap-5 2xl:grid-cols-[420px_1fr]">
@@ -121,6 +174,14 @@ export function ExportCenterWorkspace() {
             <Download className="h-4 w-4" />
             {exporting ? "Exporting..." : "Create Export"}
           </button>
+          {["evidence_package", "full_validation_package", "execution_results_csv", "audit_report_markdown"].includes(exportType) ? (
+            <label className="mt-4 block space-y-2">
+              <span className="text-sm font-semibold text-brand-text">Execution Run</span>
+              <select value={selectedRunId} onChange={(event) => setSelectedRunId(event.target.value)} className="w-full rounded-xl border border-brand-border bg-brand-card px-3 py-3 text-sm text-brand-text">
+                {runs.length === 0 ? <option value="">No execution runs yet</option> : runs.map((run) => <option key={run.id} value={run.id}>{run.run_name}</option>)}
+              </select>
+            </label>
+          ) : null}
         </section>
 
         <section className="rounded-2xl border border-brand-border bg-brand-panel/75 p-4 shadow-panel-glow">
@@ -131,13 +192,30 @@ export function ExportCenterWorkspace() {
 
           {loading ? (
             <p className="mt-5 text-sm text-brand-secondary">Loading export inventory...</p>
-          ) : exportType === "zip_package" ? (
+          ) : exportType === "zip_package" || exportType === "oracle_sql_zip" ? (
             <PackList packs={packs} selectedPackId={selectedPackId} onSelect={setSelectedPackId} />
+          ) : exportType === "execution_results_csv" || exportType === "audit_report_markdown" ? (
+            <RunList runs={runs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />
           ) : (
             <ScriptList scripts={scripts} selectedScriptIds={selectedScriptIds} onToggle={(id) => setSelectedScriptIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} />
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+function RunList({ runs, selectedRunId, onSelect }: { runs: ExecutionSnapshot["runs"]; selectedRunId: string; onSelect: (id: string) => void }) {
+  if (runs.length === 0) return <Empty message="No execution runs yet. Create a run in Execution Tracker first." />;
+  return (
+    <div className="mt-4 grid gap-3 md:grid-cols-2">
+      {runs.map((run) => (
+        <button key={run.id} type="button" onClick={() => onSelect(run.id)} className={`rounded-xl border p-4 text-left transition ${selectedRunId === run.id ? "border-brand-primary bg-brand-primary/15" : "border-brand-border bg-brand-card/70 hover:border-brand-primary/50"}`}>
+          <h3 className="text-sm font-semibold text-brand-text">{run.run_name}</h3>
+          <p className="mt-1 text-xs text-brand-secondary">{run.environment_name ?? "QA"} • {labelize(run.database_type)} • {labelize(run.status)}</p>
+          <p className="mt-3 text-xs font-semibold text-brand-teal">{run.passed_count} passed • {run.failed_count} failed</p>
+        </button>
+      ))}
     </div>
   );
 }
@@ -196,6 +274,26 @@ function downloadFile(result: ExportResponse) {
   link.download = result.fileName ?? "etl-qaplanet-export";
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function buildExecutionResultsCsv(snapshot: ExecutionSnapshot | null, selectedRunId: string) {
+  const rows = [
+    ["script_name", "status", "actual_result", "row_count", "difference_count", "difference_amount", "error_message", "evidence_notes"],
+    ...(snapshot?.results ?? [])
+      .filter((result) => !selectedRunId || result.execution_run_id === selectedRunId)
+      .map((result) => [
+        result.script_name ?? "",
+        result.status,
+        result.actual_result ?? "",
+        String(result.row_count ?? ""),
+        String(result.difference_count ?? ""),
+        String(result.difference_amount ?? ""),
+        result.error_message ?? "",
+        result.evidence_notes ?? "",
+      ]),
+  ];
+
+  return rows.map((row) => row.map((value) => `"${value.replace(/"/g, '""')}"`).join(",")).join("\n");
 }
 
 function Empty({ message }: { message: string }) {

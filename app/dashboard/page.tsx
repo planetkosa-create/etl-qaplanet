@@ -3,6 +3,7 @@ import { Code2, UploadCloud } from "lucide-react";
 import { AnalysisOverviewGrid } from "@/components/etl/AnalysisOverviewGrid";
 import { CodeEditorPanel } from "@/components/etl/CodeEditorPanel";
 import { DashboardMetricGrid } from "@/components/etl/DashboardMetricGrid";
+import { ExecutionDashboardPanel } from "@/components/etl/ExecutionDashboardPanel";
 import { ExecutionReadiness } from "@/components/etl/ExecutionReadiness";
 import { RightRail } from "@/components/etl/RightRail";
 import { UploadedArtifactsTable } from "@/components/etl/UploadedArtifactsTable";
@@ -47,6 +48,7 @@ export default function DashboardPage() {
           <CodeEditorPanel />
           <ValidationPacksGrid />
           <ExecutionReadiness />
+          <ExecutionDashboardPanel />
         </div>
         <RightRail />
       </div>

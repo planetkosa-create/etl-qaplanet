@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CheckCircle2, Code2, Database, Download, PackageCheck, RefreshCcw, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Code2, Database, Download, PackageCheck, RefreshCcw, ShieldCheck } from "lucide-react";
 import { SummaryCards } from "@/components/etl/SummaryCards";
 import { SqlCodeViewer } from "@/components/etl/SqlCodeViewer";
 import { StatusBadge } from "@/components/etl/StatusBadge";
@@ -41,6 +41,7 @@ export function SqlValidatorGeneratorWorkspace() {
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [creatingRun, setCreatingRun] = useState(false);
 
   async function loadScripts() {
     setLoading(true);
@@ -97,6 +98,35 @@ export function SqlValidatorGeneratorWorkspace() {
     });
   }, [scripts, activeTab]);
   const selectedScript = scripts.find((script) => script.id === selectedScriptId) ?? filteredScripts[0] ?? null;
+
+  async function addSelectedToExecutionRun() {
+    if (!selectedScript) return;
+    setCreatingRun(true);
+    setError("");
+    setMessage("Creating execution run...");
+
+    try {
+      const response = await fetch("/api/etl/execution/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          runName: `${selectedScript.script_name} Execution Run`,
+          databaseType: selectedScript.database_type,
+          environmentName: "QA",
+          scriptIds: [selectedScript.id],
+          executionMethod: "manual",
+        }),
+      });
+      const result = (await response.json()) as { success: boolean; error?: string; message?: string };
+      if (!response.ok || !result.success) throw new Error(result.error ?? "Execution run could not be created.");
+      setMessage(result.message ?? "Execution run created.");
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : "Execution run could not be created.");
+      setMessage("");
+    } finally {
+      setCreatingRun(false);
+    }
+  }
 
   const summaryItems = [
     { label: "Generated Scripts", value: snapshot?.counts.scripts ?? 0, accent: "blue" as const },
@@ -177,7 +207,23 @@ export function SqlValidatorGeneratorWorkspace() {
           )}
         </section>
 
-        <SqlCodeViewer script={selectedScript} emptyMessage="No generated SQL yet. Choose categories and click Generate Validation SQL." />
+        <div className="space-y-3">
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={addSelectedToExecutionRun} disabled={!selectedScript || creatingRun} className="inline-flex items-center gap-2 rounded-xl border border-brand-border bg-brand-card/70 px-4 py-2 text-sm font-semibold text-[#9DBDFF] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-50">
+              <ClipboardCheck className="h-4 w-4" />
+              {creatingRun ? "Adding..." : "Add to Execution Run"}
+            </button>
+            <Link href="/execution-tracker" className="inline-flex items-center gap-2 rounded-xl border border-brand-border bg-brand-card/70 px-4 py-2 text-sm font-semibold text-brand-secondary transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-white">
+              View Execution History
+            </Link>
+            {selectedScript ? (
+              <button type="button" onClick={() => downloadSelectedScript(selectedScript)} className="inline-flex items-center gap-2 rounded-xl border border-brand-border bg-brand-card/70 px-4 py-2 text-sm font-semibold text-brand-secondary transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-white">
+                Export Script
+              </button>
+            ) : null}
+          </div>
+          <SqlCodeViewer script={selectedScript} emptyMessage="No generated SQL yet. Choose categories and click Generate Validation SQL." />
+        </div>
       </div>
 
       <section className="rounded-2xl border border-brand-border bg-brand-panel/75 p-4 shadow-panel-glow">
@@ -212,6 +258,16 @@ export function SqlValidatorGeneratorWorkspace() {
       </section>
     </div>
   );
+}
+
+function downloadSelectedScript(script: ValidationScript) {
+  const blob = new Blob([script.sql_text], { type: "application/sql" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${script.script_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.sql`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function EmptyState() {

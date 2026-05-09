@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Home,
+  ListChecks,
   Network,
   Scale,
   Settings,
@@ -27,6 +28,7 @@ const navItems = [
   { label: "Oracle Checks", href: "/oracle-checks", icon: Database },
   { label: "Reconciliation Suite", href: "/reconciliation-suite", icon: Scale },
   { label: "Data Quality Checks", href: "/data-quality-checks", icon: ShieldCheck },
+  { label: "Execution Tracker", href: "/execution-tracker", icon: ListChecks },
   { label: "Export Center", href: "/export-center", icon: Download },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

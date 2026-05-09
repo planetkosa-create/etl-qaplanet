@@ -6,6 +6,7 @@ import { SqlCodeViewer } from "@/components/etl/SqlCodeViewer";
 import { StatusBadge } from "@/components/etl/StatusBadge";
 import { SummaryCards } from "@/components/etl/SummaryCards";
 import { labelize } from "@/lib/etl/analysis";
+import type { ExecutionSnapshot } from "@/lib/etl/execution";
 import type { SqlSnapshot } from "@/lib/etl/sql";
 
 export function ReconciliationSuiteWorkspace() {
@@ -14,14 +15,22 @@ export function ReconciliationSuiteWorkspace() {
   const [category, setCategory] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [execution, setExecution] = useState<ExecutionSnapshot | null>(null);
 
   useEffect(() => {
     async function loadScripts() {
       try {
-        const response = await fetch("/api/etl/sql/scripts", { cache: "no-store" });
+        const [response, executionResponse] = await Promise.all([
+          fetch("/api/etl/sql/scripts", { cache: "no-store" }),
+          fetch("/api/etl/execution/runs", { cache: "no-store" }),
+        ]);
         const result = (await response.json()) as SqlSnapshot & { success: boolean; error?: string };
         if (!response.ok || !result.success) throw new Error(result.error ?? "Reconciliation scripts could not be loaded.");
         setSnapshot(result);
+        if (executionResponse.ok) {
+          const executionResult = (await executionResponse.json()) as ExecutionSnapshot & { success: boolean };
+          if (executionResult.success) setExecution(executionResult);
+        }
         const firstRecon = result.scripts.find((script) => ["row_count", "sum_reconciliation", "amount_reconciliation"].includes(script.validation_category));
         setSelectedScriptId(firstRecon?.id ?? "");
       } catch (loadError) {
@@ -94,7 +103,7 @@ export function ReconciliationSuiteWorkspace() {
                       <p className="text-sm font-semibold text-brand-text">{script.script_name}</p>
                       <p className="mt-1 text-xs text-brand-secondary">{labelize(script.validation_category)}</p>
                     </div>
-                    <StatusBadge label={labelize(script.execution_status)} tone="ready" />
+                    <StatusBadge label={labelize(findExecutionStatus(execution, script.id) ?? script.execution_status)} tone={findExecutionStatus(execution, script.id) === "failed" ? "danger" : findExecutionStatus(execution, script.id) === "passed" ? "success" : "ready"} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-brand-secondary">
                     <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-brand-success" /> {script.confidence_score ?? 0}%</span>
@@ -110,6 +119,10 @@ export function ReconciliationSuiteWorkspace() {
       </div>
     </div>
   );
+}
+
+function findExecutionStatus(snapshot: ExecutionSnapshot | null, scriptId: string) {
+  return snapshot?.results.find((result) => result.script_id === scriptId && result.status !== "not_run")?.status ?? null;
 }
 
 function Alert({ message }: { message: string }) {

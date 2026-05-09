@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnalysisRunControls } from "@/components/etl/AnalysisRunControls";
 import { GapsPanel } from "@/components/etl/GapsPanel";
+import { StatusBadge } from "@/components/etl/StatusBadge";
 import { SummaryCards } from "@/components/etl/SummaryCards";
 import { labelize, type AnalysisSnapshot } from "@/lib/etl/analysis";
+import type { ExecutionSnapshot } from "@/lib/etl/execution";
 import type { SqlSnapshot, ValidationScript } from "@/lib/etl/sql";
 
 export function DataQualityChecksWorkspace() {
@@ -14,15 +16,17 @@ export function DataQualityChecksWorkspace() {
   const [checkType, setCheckType] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [scripts, setScripts] = useState<ValidationScript[]>([]);
+  const [execution, setExecution] = useState<ExecutionSnapshot | null>(null);
 
   async function loadAnalysis() {
     setLoading(true);
     setError("");
 
     try {
-      const [response, scriptResponse] = await Promise.all([
+      const [response, scriptResponse, executionResponse] = await Promise.all([
         fetch("/api/etl/analysis", { cache: "no-store" }),
         fetch("/api/etl/sql/scripts", { cache: "no-store" }),
+        fetch("/api/etl/execution/runs", { cache: "no-store" }),
       ]);
       const result = (await response.json()) as AnalysisSnapshot & { success: boolean; error?: string };
       if (!response.ok || !result.success) throw new Error(result.error ?? "Data quality checks could not be loaded.");
@@ -30,6 +34,10 @@ export function DataQualityChecksWorkspace() {
       if (scriptResponse.ok) {
         const scriptResult = (await scriptResponse.json()) as SqlSnapshot & { success: boolean };
         if (scriptResult.success) setScripts(scriptResult.scripts ?? []);
+      }
+      if (executionResponse.ok) {
+        const executionResult = (await executionResponse.json()) as ExecutionSnapshot & { success: boolean };
+        if (executionResult.success) setExecution(executionResult);
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Data quality checks could not be loaded.");
@@ -85,7 +93,7 @@ export function DataQualityChecksWorkspace() {
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-white/[0.02] text-xs uppercase tracking-wide text-brand-secondary">
                 <tr>
-                  {["Check Type", "Table", "Column", "Description", "Expected Condition", "Generated SQL", "Severity", "Confidence", "Actions"].map((heading) => (
+                  {["Check Type", "Table", "Column", "Description", "Expected Condition", "Generated SQL", "Execution", "Evidence", "Severity", "Confidence", "Actions"].map((heading) => (
                     <th key={heading} className="px-4 py-3 font-semibold">{heading}</th>
                   ))}
                 </tr>
@@ -93,6 +101,8 @@ export function DataQualityChecksWorkspace() {
               <tbody className="divide-y divide-brand-border/70">
                 {checks.map((check) => {
                   const linkedScript = findLinkedScript(scripts, check.table_name, check.column_name, check.check_type);
+                  const linkedResult = linkedScript ? execution?.results.find((result) => result.script_id === linkedScript.id && result.status !== "not_run") : null;
+                  const evidenceCount = linkedResult ? execution?.evidence.filter((item) => item.execution_result_id === linkedResult.id).length ?? 0 : 0;
                   return (
                     <tr key={check.id} className="text-brand-secondary transition hover:bg-white/[0.03]">
                       <td className="px-4 py-3">{labelize(check.check_type)}</td>
@@ -101,6 +111,8 @@ export function DataQualityChecksWorkspace() {
                       <td className="max-w-sm truncate px-4 py-3">{check.description || "-"}</td>
                       <td className="max-w-xs truncate px-4 py-3">{check.expected_condition || "-"}</td>
                       <td className="px-4 py-3">{linkedScript ? <span className="text-brand-success">{linkedScript.script_name}</span> : <span className="text-brand-warning">Not generated</span>}</td>
+                      <td className="px-4 py-3">{linkedResult ? <StatusBadge label={labelize(linkedResult.status)} tone={linkedResult.status === "passed" ? "success" : linkedResult.status === "failed" ? "danger" : "warning"} /> : <span className="text-brand-muted">Not run</span>}</td>
+                      <td className="px-4 py-3">{evidenceCount}</td>
                       <td className="px-4 py-3">{labelize(check.severity)}</td>
                       <td className="px-4 py-3 font-semibold text-brand-teal">{check.confidence_score ?? 0}%</td>
                       <td className="px-4 py-3">

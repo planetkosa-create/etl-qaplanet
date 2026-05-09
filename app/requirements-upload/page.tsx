@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { RequirementsUploadWorkspace } from "@/components/etl/RequirementsUploadWorkspace";
 
 export default function RequirementsUploadPage() {
-  return <PlaceholderPage {...placeholderPages["/requirements-upload"]} />;
+  return <RequirementsUploadWorkspace />;
 }

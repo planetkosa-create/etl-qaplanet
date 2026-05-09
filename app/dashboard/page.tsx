@@ -2,13 +2,11 @@ import Link from "next/link";
 import { Code2, UploadCloud } from "lucide-react";
 import { AnalysisOverviewGrid } from "@/components/etl/AnalysisOverviewGrid";
 import { CodeEditorPanel } from "@/components/etl/CodeEditorPanel";
+import { DashboardMetricGrid } from "@/components/etl/DashboardMetricGrid";
 import { ExecutionReadiness } from "@/components/etl/ExecutionReadiness";
-import { MetricCard } from "@/components/etl/MetricCard";
 import { RightRail } from "@/components/etl/RightRail";
 import { UploadedArtifactsTable } from "@/components/etl/UploadedArtifactsTable";
 import { ValidationPacksGrid } from "@/components/etl/ValidationPacksGrid";
-import type { IconName } from "@/components/etl/icon-map";
-import { metricCards } from "@/lib/etl/mock-data";
 
 export default function DashboardPage() {
   return (
@@ -38,18 +36,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {metricCards.map((metric) => (
-          <MetricCard
-            key={metric.label}
-            label={metric.label}
-            count={metric.count}
-            status={metric.status}
-            icon={metric.icon as IconName}
-            accent={metric.accent}
-          />
-        ))}
-      </section>
+      <DashboardMetricGrid />
 
       <div className="grid gap-5 2xl:grid-cols-[1fr_320px]">
         <div className="min-w-0 space-y-5">

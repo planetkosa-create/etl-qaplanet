@@ -51,7 +51,26 @@ Add these in Vercel Project Settings > Environment Variables:
 NEXT_PUBLIC_SUPABASE_URL=https://jsjirznjelewjqezpfan.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-public-key
 NEXT_PUBLIC_APP_URL=https://etl.qaplanet.ca
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is server-side only. Use it while Phase 2 does not have user auth wired yet, so the server API can write to the private `etl-artifacts` bucket and `etl_artifacts` table. Never create a `NEXT_PUBLIC_` service role variable.
+
+## Supabase Phase 2 Setup
+
+Run this SQL in Supabase SQL Editor:
+
+```text
+supabase/etl_artifacts.sql
+```
+
+It creates:
+
+- `public.etl_artifacts`
+- `etl-artifacts` private storage bucket
+- authenticated-user RLS policies ready for the auth phase
+
+For Phase 2 before auth is wired, set `SUPABASE_SERVICE_ROLE_KEY` in Vercel so the server-side upload API can write safely without exposing privileged keys to the browser.
 
 ## Supabase Auth Configuration
 

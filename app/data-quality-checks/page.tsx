@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { DataQualityChecksWorkspace } from "@/components/etl/DataQualityChecksWorkspace";
 
 export default function DataQualityChecksPage() {
-  return <PlaceholderPage {...placeholderPages["/data-quality-checks"]} />;
+  return <DataQualityChecksWorkspace />;
 }

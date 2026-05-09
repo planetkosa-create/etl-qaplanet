@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { RuleExtractionWorkspace } from "@/components/etl/RuleExtractionWorkspace";
 
 export default function RuleExtractionPage() {
-  return <PlaceholderPage {...placeholderPages["/rule-extraction"]} />;
+  return <RuleExtractionWorkspace />;
 }

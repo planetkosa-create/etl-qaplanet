@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { analysisOverview } from "@/lib/etl/mock-data";
 import { icons, type IconName } from "@/components/etl/icon-map";
+import { type AnalysisSnapshot } from "@/lib/etl/analysis";
+import { AnalysisRunControls } from "@/components/etl/AnalysisRunControls";
 
 const accentClasses = {
   green: "bg-brand-success/15 text-brand-success",
@@ -10,8 +15,42 @@ const accentClasses = {
   blue: "bg-brand-primary/15 text-[#7AA7FF]",
   pink: "bg-fuchsia-500/15 text-fuchsia-300",
 };
+type OverviewItem = {
+  label: string;
+  count: number;
+  icon: IconName;
+  accent: keyof typeof accentClasses;
+};
 
 export function AnalysisOverviewGrid() {
+  const [items, setItems] = useState<OverviewItem[]>(analysisOverview.map((item) => item as OverviewItem));
+  const [hasRealAnalysis, setHasRealAnalysis] = useState(false);
+
+  async function loadAnalysis() {
+    try {
+      const response = await fetch("/api/etl/analysis", { cache: "no-store" });
+      const result = (await response.json()) as AnalysisSnapshot & { success: boolean };
+
+      if (response.ok && result.success && result.configured) {
+        setHasRealAnalysis(result.counts.mappings + result.counts.rules + result.counts.dataQualityChecks + result.counts.gaps > 0);
+        setItems([
+          { label: "Source-to-Target Mappings", count: result.counts.mappings, icon: "GitBranch", accent: "green" },
+          { label: "Transformation Rules", count: result.rules.filter((rule) => rule.rule_type === "transformation").length, icon: "Atom", accent: "purple" },
+          { label: "Join Conditions", count: result.rules.filter((rule) => rule.rule_type === "join").length, icon: "Waypoints", accent: "teal" },
+          { label: "Null Handling Rules", count: result.rules.filter((rule) => rule.rule_type === "null_handling").length, icon: "SearchCheck", accent: "orange" },
+          { label: "Aggregation Logic", count: result.rules.filter((rule) => rule.rule_type === "aggregation").length, icon: "Activity", accent: "blue" },
+          { label: "Data Quality Constraints", count: result.counts.dataQualityChecks, icon: "ShieldCheck", accent: "pink" },
+        ]);
+      }
+    } catch {
+      setHasRealAnalysis(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAnalysis();
+  }, []);
+
   return (
     <section className="rounded-2xl border border-brand-border bg-brand-panel/75 p-4 shadow-panel-glow">
       <div className="mb-3 flex items-center justify-between">
@@ -23,8 +62,13 @@ export function AnalysisOverviewGrid() {
           View All
         </Link>
       </div>
+      {!hasRealAnalysis ? (
+        <div className="mb-3">
+          <AnalysisRunControls compact onComplete={loadAnalysis} />
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {analysisOverview.map((item) => {
+        {items.map((item) => {
           const Icon = icons[item.icon as IconName];
 
           return (

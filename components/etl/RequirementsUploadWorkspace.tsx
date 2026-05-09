@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Database, RefreshCcw } from "lucide-react";
+import { AnalysisRunControls } from "@/components/etl/AnalysisRunControls";
 import { ArtifactPreviewDrawer } from "@/components/etl/ArtifactPreviewDrawer";
 import { ArtifactTable } from "@/components/etl/ArtifactTable";
 import { FileUploadDropzone } from "@/components/etl/FileUploadDropzone";
@@ -186,6 +187,8 @@ export function RequirementsUploadWorkspace() {
           </button>
         </div>
       </section>
+
+      <AnalysisRunControls />
 
       <section className="rounded-2xl border border-brand-border bg-brand-panel/75 shadow-panel-glow">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-border px-4 py-3">

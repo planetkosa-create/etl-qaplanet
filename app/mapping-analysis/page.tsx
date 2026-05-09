@@ -1,6 +1,5 @@
-import { PlaceholderPage } from "@/components/etl/PlaceholderPage";
-import { placeholderPages } from "@/lib/etl/mock-data";
+import { MappingAnalysisWorkspace } from "@/components/etl/MappingAnalysisWorkspace";
 
 export default function MappingAnalysisPage() {
-  return <PlaceholderPage {...placeholderPages["/mapping-analysis"]} />;
+  return <MappingAnalysisWorkspace />;
 }
